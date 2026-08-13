@@ -85,6 +85,26 @@ class App(tk.Tk):
 		self.refresh_process_list()
 		self._apply_theme()
 	
+	def _get_theme_palette(self):
+		"""Return theme colors for the current theme."""
+		if self.theme_key.get() == 'dark':
+			return {
+				'bg': '#2e2e2e',
+				'fg': '#f5f5f5',
+				'dark_text': '#1d1d1d',
+				'panel_bg': '#3a3a3a',
+				'entry_bg': '#404040',
+				'selection': '#4a90d9',
+			}
+		return {
+			'bg': 'SystemButtonFace',
+			'fg': 'black',
+			'dark_text': 'black',
+			'panel_bg': '#f0f0f0',
+			'entry_bg': 'white',
+			'selection': '#4a90d9',
+		}
+	
 	def _toggle_settings(self):
 		"""Toggle settings panel"""
 		self.ui_builder.toggle_settings()
@@ -142,20 +162,48 @@ class App(tk.Tk):
 		self.priority_widgets = self.ui_builder.create_priority_tab(tab_priority, callbacks)
 		
 		self.refresh_process_list()
+		self._apply_theme()
 	
 	def _apply_theme(self):
-		"""Apply theme colors"""
-		if self.theme_key.get() == 'dark':
-			bg = '#2e2e2e'
-			fg = 'white'
-		else:
-			bg = 'SystemButtonFace'
-			fg = 'black'
+		"""Apply theme colors to all relevant widgets."""
+		palette = self._get_theme_palette()
+		bg = palette['bg']
+		fg = palette['fg']
+		dark_text = palette['dark_text']
+		panel_bg = palette['panel_bg']
+		entry_bg = palette['entry_bg']
+		selection = palette['selection']
 		
 		self.configure(bg=bg)
 		self.style.configure('TFrame', background=bg)
 		self.style.configure('TLabel', background=bg, foreground=fg)
-		self.style.configure('TButton', background=bg)
+		self.style.configure('TButton', background=bg, foreground=dark_text)
+		self.style.configure('TEntry', fieldbackground=entry_bg, foreground=fg)
+		self.style.configure('TCombobox', fieldbackground=entry_bg, foreground=dark_text)
+		self.style.configure('TCheckbutton', background=bg, foreground=fg)
+		self.style.configure('TNotebook', background=bg)
+		self.style.configure('TNotebook.Tab', background=panel_bg, foreground=dark_text)
+		self.style.map('TNotebook.Tab',
+			background=[('selected', panel_bg), ('active', panel_bg)],
+			foreground=[('selected', dark_text), ('active', dark_text)]
+		)
+		
+		if self.proc_listbox is not None:
+			self.proc_listbox.configure(
+				bg=bg,
+				fg=fg,
+				selectbackground=selection,
+				selectforeground='white',
+				highlightbackground=bg,
+				highlightcolor=bg
+			)
+		
+		for child in self.winfo_children():
+			if not isinstance(child, ttk.Widget):
+				try:
+					child.configure(background=bg, foreground=fg)
+				except Exception:
+					pass
 	
 	def _on_theme_select(self):
 		"""Handle theme change"""
