@@ -266,7 +266,7 @@ class UIBuilder:
 		ttk.Label(top, text=self.i18n.t('search_label')).pack(side='left')
 		
 		self.search_var = tk.StringVar()
-		search_entry = ttk.Entry(top, textvariable=self.search_var)
+		search_entry = tk.Entry(top, textvariable=self.search_var, fg='black', bg='white', insertbackground='black')
 		search_entry.pack(side='left', fill='x', expand=True, padx=6)
 		search_entry.bind('<KeyRelease>', lambda e: callbacks.get('on_search', lambda: None)())
 		
@@ -277,7 +277,16 @@ class UIBuilder:
 		)
 		refresh_btn.pack(side='right')
 		
-		proc_listbox = tk.Listbox(parent)
+		proc_listbox = tk.Listbox(
+			parent,
+			bg='black',
+			fg='white',
+			bd=1,
+			relief='solid',
+			highlightthickness=1,
+			highlightbackground='white',
+			highlightcolor='white',
+		)
 		proc_listbox.pack(fill='both', expand=True)
 		proc_listbox.bind('<<ListboxSelect>>', lambda e: callbacks.get('on_process_select', lambda: None)())
 		
@@ -302,12 +311,29 @@ class UIBuilder:
 
 		ttk.Label(add_frame, text=self.i18n.t('priority_process_name_label')).grid(row=0, column=0, sticky='w')
 		keyword_var = tk.StringVar()
-		keyword_entry = ttk.Entry(add_frame, textvariable=keyword_var)
+		keyword_entry = tk.Entry(add_frame, textvariable=keyword_var, fg='black', bg='white', insertbackground='black')
 		keyword_entry.grid(row=0, column=1, sticky='ew')
 		keyword_entry.bind('<KeyRelease>', lambda e: callbacks.get('on_priority_keyword_change', lambda: None)())
 
+		priority_refresh_btn = ttk.Button(
+			add_frame,
+			text=self.i18n.t('refresh_button'),
+			command=callbacks.get('on_priority_refresh', lambda: None)
+		)
+		priority_refresh_btn.grid(row=0, column=2, sticky='w', padx=(6, 0))
+
 		ttk.Label(add_frame, text=self.i18n.t('priority_process_list_label')).grid(row=1, column=0, sticky='nw')
-		process_listbox = tk.Listbox(add_frame, height=6)
+		process_listbox = tk.Listbox(
+			add_frame,
+			height=6,
+			bg='black',
+			fg='white',
+			bd=1,
+			relief='solid',
+			highlightthickness=1,
+			highlightbackground='white',
+			highlightcolor='white',
+		)
 		process_listbox.grid(row=1, column=1, sticky='ew')
 		process_listbox.bind('<<ListboxSelect>>', lambda e: callbacks.get('on_priority_process_select', lambda: None)())
 

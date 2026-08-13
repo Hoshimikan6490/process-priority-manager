@@ -76,6 +76,7 @@ class App(tk.Tk):
 			'on_refresh': self.refresh_process_list,
 			'on_process_select': self._on_process_select,
 			'on_priority_keyword_change': self._on_priority_keyword_change,
+			'on_priority_refresh': self.refresh_priority_process_list,
 			'on_priority_process_select': self._on_priority_process_select,
 			'on_apply_priority_rule': self.apply_priority_rule,
 			'on_delete_priority_rules': self.delete_checked_priority_rules,
@@ -173,6 +174,7 @@ class App(tk.Tk):
 			'on_refresh': self.refresh_process_list,
 			'on_process_select': self._on_process_select,
 			'on_priority_keyword_change': self._on_priority_keyword_change,
+			'on_priority_refresh': self.refresh_priority_process_list,
 			'on_priority_process_select': self._on_priority_process_select,
 			'on_apply_priority_rule': self.apply_priority_rule,
 			'on_delete_priority_rules': self.delete_checked_priority_rules,
@@ -226,22 +228,28 @@ class App(tk.Tk):
 		
 		if self.proc_listbox is not None:
 			self.proc_listbox.configure(
-				bg=bg,
-				fg=fg,
+				bg='black',
+				fg='white',
 				selectbackground=selection,
 				selectforeground='white',
-				highlightbackground=bg,
-				highlightcolor=bg
+				highlightbackground='white',
+				highlightcolor='white',
+				bd=1,
+				relief='solid',
+				highlightthickness=1,
 			)
 
 		if self.priority_widgets and self.priority_widgets.get('process_listbox') is not None:
 			self.priority_widgets['process_listbox'].configure(
-				bg=bg,
-				fg=fg,
+				bg='black',
+				fg='white',
 				selectbackground=selection,
 				selectforeground='white',
-				highlightbackground=bg,
-				highlightcolor=bg
+				highlightbackground='white',
+				highlightcolor='white',
+				bd=1,
+				relief='solid',
+				highlightthickness=1,
 			)
 		
 		for child in self.winfo_children():
