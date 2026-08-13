@@ -147,14 +147,13 @@ class App(tk.Tk):
 		"""Refresh all UI text after language change"""
 		self.title(self.i18n.t('app_title'))
 		self.ui_builder.update_toolbar_title()
-		was_settings_visible = self.ui_builder.settings_visible
+		if self.ui_builder.settings_window is not None:
+			try:
+				self.ui_builder.settings_window.title(self.i18n.t('app_title'))
+			except Exception:
+				pass
 		
 		# Recreate UI with new language
-		try:
-			self.ui_builder.settings_frame.destroy()
-		except Exception:
-			pass
-		
 		try:
 			for widget in self.winfo_children():
 				if isinstance(widget, ttk.Notebook):
@@ -180,11 +179,6 @@ class App(tk.Tk):
 		}
 		
 		self.ui_builder.create_settings_panel(callbacks)
-		if was_settings_visible:
-			self.ui_builder.settings_frame.pack(fill='x', padx=8, pady=(0, 8))
-			self.ui_builder.settings_visible = True
-		else:
-			self.ui_builder.settings_visible = False
 
 		notebook = self.ui_builder.create_notebook()
 		

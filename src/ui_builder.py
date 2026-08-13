@@ -16,7 +16,57 @@ class UIBuilder:
 		self.app = app
 		self.i18n = i18n
 		self.settings_visible = False
+		self.settings_window = None
 		self.settings_frame = None
+
+	def _ensure_settings_window(self):
+		"""Create settings window if it does not exist yet."""
+		if self.settings_window is not None:
+			try:
+				if self.settings_window.winfo_exists():
+					return
+			except Exception:
+				pass
+
+		self.settings_window = tk.Toplevel(self.app)
+		self.settings_window.title(self.i18n.t('app_title'))
+		self.settings_window.resizable(False, False)
+		self.settings_window.transient(self.app)
+		self.settings_window.protocol('WM_DELETE_WINDOW', self._hide_settings_window)
+		self.settings_window.withdraw()
+
+	def _hide_settings_window(self):
+		"""Hide settings window."""
+		if self.settings_window is None:
+			return
+		try:
+			self.settings_window.withdraw()
+		except Exception:
+			pass
+		self.settings_visible = False
+
+	def _position_settings_window(self):
+		"""Place settings window centered over the main window."""
+		if self.settings_window is None:
+			return
+
+		try:
+			self.app.update_idletasks()
+			self.settings_window.update_idletasks()
+
+			app_x = self.app.winfo_x()
+			app_y = self.app.winfo_y()
+			app_w = self.app.winfo_width()
+			app_h = self.app.winfo_height()
+
+			win_w = self.settings_window.winfo_reqwidth()
+			win_h = self.settings_window.winfo_reqheight()
+
+			x = app_x + max(0, (app_w - win_w) // 2)
+			y = app_y + max(0, (app_h - win_h) // 2)
+			self.settings_window.geometry(f'+{x}+{y}')
+		except Exception:
+			pass
 	
 	def create_toolbar(self, toggle_settings_callback):
 		"""Create toolbar with title and settings button
@@ -51,7 +101,16 @@ class UIBuilder:
 		Args:
 			callbacks: Dictionary with callback functions for settings changes
 		"""
-		self.settings_frame = ttk.Frame(self.app, relief='ridge', padding=8)
+		self._ensure_settings_window()
+
+		if self.settings_frame is not None:
+			try:
+				self.settings_frame.destroy()
+			except Exception:
+				pass
+
+		self.settings_frame = ttk.Frame(self.settings_window, relief='ridge', padding=8)
+		self.settings_frame.pack(fill='both', expand=True, padx=8, pady=8)
 		
 		# Language selector
 		lang_label = ttk.Label(self.settings_frame, text=self.i18n.t('language'))
@@ -170,11 +229,15 @@ class UIBuilder:
 	
 	def toggle_settings(self):
 		"""Toggle settings panel visibility"""
+		self._ensure_settings_window()
+
 		if self.settings_visible:
-			self.settings_frame.pack_forget()
-			self.settings_visible = False
+			self._hide_settings_window()
 		else:
-			self.settings_frame.pack(fill='x', padx=8, pady=(0, 8))
+			self._position_settings_window()
+			self.settings_window.deiconify()
+			self.settings_window.lift()
+			self.settings_window.focus_force()
 			self.settings_visible = True
 	
 	def create_notebook(self):
