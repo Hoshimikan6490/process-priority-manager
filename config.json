@@ -1,0 +1,12 @@
+{
+  "ui": {
+    "language": "ja",
+    "theme": "dark",
+    "process_refresh": "1s",
+    "priority_update": "1s",
+    "start_with_windows": false,
+    "minimize_to_tray": false,
+    "auto_monitor": false
+  },
+  "priority_rules": []
+}

@@ -154,7 +154,8 @@ class UIBuilder:
 		ttk.Checkbutton(
 			self.settings_frame,
 			text=self.i18n.t('tray_checkbox'),
-			variable=self.tray_var
+			variable=self.tray_var,
+			command=callbacks.get('on_tray_toggle', lambda: None)
 		).grid(row=5, column=0, columnspan=2, sticky='w')
 		
 		ttk.Checkbutton(
@@ -231,13 +232,24 @@ class UIBuilder:
 		"""
 		frame = ttk.Frame(parent, padding=8)
 		frame.pack(fill='both', expand=True)
-		
-		ttk.Label(frame, text=self.i18n.t('selected_process_label')).grid(row=0, column=0, sticky='w')
-		selected_label = ttk.Label(frame, text=self.i18n.t('process_none'))
-		selected_label.grid(row=0, column=1, sticky='w')
-		
-		ttk.Label(frame, text=self.i18n.t('priority_label')).grid(row=1, column=0, sticky='w')
-		
+
+		# Add setting section
+		add_frame = ttk.LabelFrame(frame, text=self.i18n.t('priority_add_setting_section'), padding=8)
+		add_frame.pack(fill='x', pady=(0, 10))
+
+		ttk.Label(add_frame, text=self.i18n.t('priority_process_name_label')).grid(row=0, column=0, sticky='w')
+		keyword_var = tk.StringVar()
+		keyword_entry = ttk.Entry(add_frame, textvariable=keyword_var)
+		keyword_entry.grid(row=0, column=1, sticky='ew')
+		keyword_entry.bind('<KeyRelease>', lambda e: callbacks.get('on_priority_keyword_change', lambda: None)())
+
+		ttk.Label(add_frame, text=self.i18n.t('priority_process_list_label')).grid(row=1, column=0, sticky='nw')
+		process_listbox = tk.Listbox(add_frame, height=6)
+		process_listbox.grid(row=1, column=1, sticky='ew')
+		process_listbox.bind('<<ListboxSelect>>', lambda e: callbacks.get('on_priority_process_select', lambda: None)())
+
+		ttk.Label(add_frame, text=self.i18n.t('priority_label')).grid(row=2, column=0, sticky='w')
+
 		priority_var = tk.StringVar(value='Normal')
 		priorities = [
 			self.i18n.t('priority_idle'),
@@ -247,23 +259,50 @@ class UIBuilder:
 			self.i18n.t('priority_high'),
 			self.i18n.t('priority_realtime')
 		]
-		
-		priority_combo = ttk.Combobox(frame, values=priorities, textvariable=priority_var, state='readonly')
-		priority_combo.grid(row=1, column=1, sticky='w')
+
+		priority_combo = ttk.Combobox(add_frame, values=priorities, textvariable=priority_var, state='readonly')
+		priority_combo.grid(row=2, column=1, sticky='w')
 		priority_combo.set(self.i18n.t('priority_normal'))
-		
+
 		apply_btn = ttk.Button(
-			frame,
+			add_frame,
 			text=self.i18n.t('apply_priority_button'),
-			command=callbacks.get('on_apply_priority', lambda: None)
+			command=callbacks.get('on_apply_priority_rule', lambda: None)
 		)
-		apply_btn.grid(row=2, column=0, columnspan=2, pady=8)
-		
-		for child in frame.winfo_children():
-			child.grid_configure(padx=6, pady=6)
-		
+		apply_btn.grid(row=3, column=0, columnspan=2, pady=(8, 2), sticky='w')
+
+		add_frame.columnconfigure(1, weight=1)
+
+		# Active settings section
+		active_frame = ttk.LabelFrame(frame, text=self.i18n.t('priority_active_settings_section'), padding=8)
+		active_frame.pack(fill='both', expand=True)
+
+		headers = ttk.Frame(active_frame)
+		headers.pack(fill='x')
+		ttk.Label(headers, text=self.i18n.t('priority_column_select'), width=8).grid(row=0, column=0, sticky='w')
+		ttk.Label(headers, text=self.i18n.t('priority_column_keyword'), width=30).grid(row=0, column=1, sticky='w')
+		ttk.Label(headers, text=self.i18n.t('priority_column_priority'), width=16).grid(row=0, column=2, sticky='w')
+
+		rules_rows_frame = ttk.Frame(active_frame)
+		rules_rows_frame.pack(fill='both', expand=True, pady=(6, 8))
+
+		delete_btn = ttk.Button(
+			active_frame,
+			text=self.i18n.t('delete_checked_settings_button'),
+			command=callbacks.get('on_delete_priority_rules', lambda: None)
+		)
+		delete_btn.pack(anchor='w')
+
+		for child in add_frame.winfo_children():
+			child.grid_configure(padx=6, pady=4)
+
 		return {
-			'selected_label': selected_label,
+			'keyword_var': keyword_var,
+			'keyword_entry': keyword_entry,
+			'process_listbox': process_listbox,
 			'priority_var': priority_var,
-			'priority_combo': priority_combo
+			'priority_combo': priority_combo,
+			'rules_rows_frame': rules_rows_frame,
+			'rule_check_vars': [],
+			'delete_button': delete_btn,
 		}
