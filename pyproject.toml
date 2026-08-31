@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "process-priority-manager"
+version = "0.1.0"
+description = "Windows GUI application for managing process priorities"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "psutil",
+    "pystray",
+    "Pillow",
+]
+
+[tool.setuptools]
+py-modules = ["main"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["src*", "locales*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+locales = ["*.json"]
+
+[tool.pyappdist]
+name = "Process Priority Manager"
+python = "3.12"
+
+[[tool.pyappdist.launchers]]
+name = "process-priority-manager"
+title = "Process Priority Manager"
+entry = "main"
+gui = true
+
+[[tool.pyappdist.targets]]
+name = "windowsmsi"
+platform = "windows-x86_64"
+format = "msi"
+manufacturer = "Hoshimikan6490"
+upgrade-code = "1195122B-D2DC-474B-94A4-1310B34DBBAE"

@@ -1,1 +1,5 @@
 __pycache__
+process_priority_manager.egg-info
+build
+appdist
+.appdist-build
