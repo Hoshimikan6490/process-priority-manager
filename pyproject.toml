@@ -7,7 +7,7 @@ name = "process-priority-manager"
 version = "0.1.0"
 description = "Windows GUI application for managing process priorities"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "psutil",
     "pystray",
@@ -40,4 +40,4 @@ name = "windowsmsi"
 platform = "windows-x86_64"
 format = "msi"
 manufacturer = "Hoshimikan6490"
-upgrade-code = "1195122B-D2DC-474B-94A4-1310B34DBBAE"
+upgrade-code = "bbb0ee3f-0e4b-4079-a4a4-d5f55ce9e48b"
