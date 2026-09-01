@@ -50,5 +50,5 @@ pip install -r requirements.txt
 ```
 完成したファイルは以下のコマンドでbuild出来ます。なお、ローカルユーザーにuvx.exe（およびuv）をインストールしている場合のコマンドです。
 ```
-"$env:APPDATA\Python\Python314\Scripts\uvx.exe" pyappdist build windowsmsi
+& "$env:APPDATA\Python\Python314\Scripts\uvx.exe" pyappdist build windowsmsi
 ```
