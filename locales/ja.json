@@ -12,6 +12,7 @@
 	"startup_checkbox": "Windows起動時に開く",
 	"tray_checkbox": "トレイに最小化",
 	"auto_monitor_checkbox": "優先度自動監視を有効化",
+  "open_github_repository": "リポジトリを開く",
 	"selected_process_label": "選択中のプロセス:",
 	"priority_label": "優先度:",
 	"apply_priority_button": "優先度を適用",

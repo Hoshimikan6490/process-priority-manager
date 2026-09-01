@@ -1,6 +1,7 @@
 """UI builder module for creating application interface"""
 import tkinter as tk
 from tkinter import ttk
+import webbrowser
 
 
 class UIBuilder:
@@ -223,7 +224,17 @@ class UIBuilder:
 			variable=self.auto_monitor_var,
 			command=callbacks.get('on_auto_monitor_toggle', lambda: None)
 		).grid(row=6, column=0, columnspan=2, sticky='w')
-		
+
+		# リポジトリへのURLリンクボタン
+		repo_url = "https://github.com/Hoshimikan6490/process-priority-manager"
+		repo_button = ttk.Button(
+			self.settings_frame,
+			text=self.i18n.t('open_github_repository'),
+			command=lambda: webbrowser.open(repo_url)
+		)
+		repo_button.grid(row=7, column=0, columnspan=2, sticky='w', pady=(10, 0))
+
+		# スペースの調整
 		for child in self.settings_frame.winfo_children():
 			child.grid_configure(padx=4, pady=4)
 	
