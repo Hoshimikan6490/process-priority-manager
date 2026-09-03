@@ -2,6 +2,8 @@
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
+import os
+from src.config_manager import ConfigManager
 
 
 class UIBuilder:
@@ -233,6 +235,14 @@ class UIBuilder:
 			command=lambda: webbrowser.open(repo_url)
 		)
 		repo_button.grid(row=7, column=0, columnspan=2, sticky='w', pady=(10, 0))
+
+		# 設定ファイルを開くボタン
+		open_config_button = ttk.Button(
+			self.settings_frame,
+			text=self.i18n.t('open_config_file'),
+			command=lambda: os.startfile(ConfigManager._resolve_config_path())
+		)
+		open_config_button.grid(row=8, column=0, columnspan=2, sticky='w', pady=(4, 0))
 
 		# スペースの調整
 		for child in self.settings_frame.winfo_children():

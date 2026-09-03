@@ -13,6 +13,7 @@
 	"tray_checkbox": "Minimize to tray",
 	"auto_monitor_checkbox": "Enable auto-monitor priority",
 	"open_github_repository": "Open Github Repository",
+	"open_config_file": "Open Config File",
 	"selected_process_label": "Selected process:",
 	"priority_label": "Priority:",
 	"apply_priority_button": "Apply Priority",

@@ -2,8 +2,7 @@
 import copy
 import json
 import os
-import sys
-
+from pathlib import Path
 
 class ConfigManager:
 	"""Loads and saves configuration near the executable."""
@@ -32,11 +31,9 @@ class ConfigManager:
 	@staticmethod
 	def _resolve_config_path():
 		"""Resolve config path next to executable/script."""
-		if getattr(sys, 'frozen', False):
-			base_dir = os.path.dirname(sys.executable)
-		else:
-			base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-		return os.path.join(base_dir, 'config.json')
+		config_dir = Path(os.environ["APPDATA"])/"Process Priority Manager"
+		print(config_dir/"config.json")
+		return config_dir / "config.json"
 
 	@classmethod
 	def _default_config(cls):
@@ -137,6 +134,8 @@ class ConfigManager:
 	def save(self, config):
 		"""Save configuration to disk."""
 		try:
+			os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+			
 			with open(self.config_path, 'w', encoding='utf-8') as f:
 				json.dump(config, f, ensure_ascii=False, indent=2)
 		except Exception:
