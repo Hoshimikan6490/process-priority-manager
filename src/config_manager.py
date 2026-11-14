@@ -54,10 +54,15 @@ class ConfigManager:
         key_path = r"Software\Hoshimikan6490\Process Priority Manager"
         for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
             try:
-                with winreg.OpenKey(hive, key_path) as key:
-                    value, _ = winreg.QueryValueEx(key, "CheckUpdates")
+                key = winreg.OpenKey(hive, key_path)
             except OSError:
                 continue
+            with key:
+                try:
+                    value, _ = winreg.QueryValueEx(key, "CheckUpdates")
+                except OSError:
+                    # Installed by the MSI with the "update check" feature deselected.
+                    return False
             return str(value).strip() == "1"
         return None
 

@@ -1,15 +1,46 @@
-"""Build the MSI: pyappdist builds the app image + base .wxs, then this script
-customises the .wxs (install scope, install folder, update-check option)."""
+"""Build the MSI.
+
+pyappdist builds the app image and a base .wxs; this script customises the .wxs
+(install scope, install folder, update-check feature, UI) and compiles it together
+with installer/UI.wxs using the WiX CLI.
+"""
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+INSTALLER = ROOT / "installer"
 TARGET = "windowsmsi"
 BUILD = ROOT / ".appdist-build" / TARGET
-WXS = BUILD / "process-priority-manager.wxs"
+BASE_WXS = BUILD / "process-priority-manager.wxs"
+CUSTOM_WXS = BUILD / "ppm.wxs"
 OUT_DIR = ROOT / "appdist" / TARGET / "dist"
+
+# The app reads this key (see src/config_manager.py) to honour the installer choice.
+REG_KEY = r"Software\Hoshimikan6490\Process Priority Manager"
+
+# Registered only when the UpdateCheck feature is enabled.
+UPDATE_COMPONENT = f"""<Component Id="cmp_updatecheck" Directory="APPLICATIONFOLDER" Guid="6F1D3C52-8B1E-4D8A-9A57-2C3E5B7A9D10">
+      <RegistryValue Root="HKMU" Key="{REG_KEY}" Name="CheckUpdates" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+    """
+
+# Hidden feature toggled by the CHECKUPDATES property (checkbox / silent install).
+UPDATE_FEATURE = """  <Feature Id="UpdateCheck" Title="更新の定期確認 (GitHub Releases)" Level="1" Display="hidden">
+        <Level Value="0" Condition="NOT CHECKUPDATES OR CHECKUPDATES = &quot;0&quot;" />
+        <ComponentRef Id="cmp_updatecheck" />
+      </Feature>
+    """
+
+UI_PROPERTIES = (
+    '<Property Id="ApplicationFolderName" Value="Process Priority Manager" />\n'
+    '    <Property Id="WixAppFolder" Value="WixPerUserFolder" />\n'
+    '    <Property Id="REBOOT" Value="ReallySuppress" />\n'
+    '    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />\n'
+    '    <UIRef Id="PPM_UI" />\n    '
+)
 
 
 def run(*cmd):
@@ -17,75 +48,62 @@ def run(*cmd):
     subprocess.run(cmd, check=True, cwd=ROOT)
 
 
-def sub1(pattern, repl, text, flags=0):
-    new, n = re.subn(pattern, repl, text, count=1, flags=flags)
+def sub1(pattern, repl, text):
+    """Replace exactly one match; abort if the generated .wxs layout changed."""
+    new, n = re.subn(pattern, repl, text, count=1)
     if n != 1:
         sys.exit(f"transform failed (pattern not found): {pattern}")
     return new
 
 
 def transform(s):
-    # 1. 現在のユーザー / 全ユーザーを実行時に選択可能にする
+    # Install scope (per-user / all users) is chosen at install time.
     s = sub1(r'Scope="perUser"', 'Scope="perUserOrMachine"', s)
     s = sub1(r'Language="1033"', 'Language="1041"', s)
 
-    # 2. インストール先: WixUI_Advanced 用の配置 (per-machine は Program Files、
-    #    per-user は %LOCALAPPDATA%\Apps。いずれもインストール先ダイアログで変更可)
+    # Install folder: WixUI requires the directory id APPLICATIONFOLDER. The default
+    # path is set per scope in UI.wxs; the Directory tree only needs to exist.
     s = sub1(
         r'<StandardDirectory Id="LocalAppDataFolder">\s*'
         r'<Directory Id="dir_programs" Name="Programs">\s*'
         r'(<Directory Id="INSTALLFOLDER" Name="[^"]*">)',
-        r'<StandardDirectory Id="ProgramFiles6432Folder">\n        \1',
+        lambda m: '<StandardDirectory Id="ProgramFiles6432Folder">\n        ' + m.group(1),
         s,
     )
     s = sub1(
         r'</Directory>\s*</Directory>\s*</StandardDirectory>\s*'
         r'<StandardDirectory Id="ProgramMenuFolder">',
-        '</Directory>\n    </StandardDirectory>\n'
-        '    <StandardDirectory Id="ProgramMenuFolder">',
+        '</Directory>\n    </StandardDirectory>\n    <StandardDirectory Id="ProgramMenuFolder">',
         s,
     )
+    s = s.replace("INSTALLFOLDER", "APPLICATIONFOLDER")
 
-    # 3. レジストリはスコープに追従 (HKMU) + 更新確認設定を書き込む
+    # Registry follows the install scope.
     s = s.replace('Root="HKCU"', 'Root="HKMU"')
-    reg = (
-        r'<RegistryValue Root="HKMU" Key="Software\Hoshimikan6490\Process Priority Manager" '
-        r'Name="CheckUpdates" Type="string" Value="[CHECKUPDATES]" />'
-    )
-    s = sub1(
-        r'(<Component Id="cmp_registry"[^>]*>)',
-        lambda m: m.group(1) + "\n            " + reg,
-        s,
-    )
 
-    # WixUI_Advanced はインストール先ディレクトリ ID に APPLICATIONFOLDER を要求する
-    s = s.replace('INSTALLFOLDER', 'APPLICATIONFOLDER')
+    # Update-check component/feature; the main feature is hidden (no feature tree UI).
+    s = sub1(r'<Feature Id="Main"', lambda m: UPDATE_COMPONENT + m.group(0), s)
+    s = sub1(r'</Feature>(\s*)</Package>', lambda m: UPDATE_FEATURE + "</Feature>" + m.group(1) + "</Package>", s)
 
-    # 4. UI
-    s = sub1(
-        r'(<Feature Id="Main")',
-        '<Property Id="ApplicationFolderName" Value="Process Priority Manager" />\n'
-        '    <Property Id="WixAppFolder" Value="WixPerUserFolder" />\n'
-        '    <ui:WixUI Id="WixUI_Advanced" />\n    \\1',
-        s,
-    )
-    s = sub1(r'<Wix xmlns="([^"]+)">', r'<Wix xmlns="\1" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">', s)
+    # UI properties, license and UI reference (installer/UI.wxs, installer/license.rtf).
+    s = sub1(r'<Feature Id="Main"', lambda m: UI_PROPERTIES + '<Feature Id="Main" Display="hidden"', s)
     return s
 
 
 def main():
     run("uvx", "pyappdist", "build-image", TARGET)
     run("uvx", "pyappdist", "gen-wix", TARGET)
-    out = BUILD / "ppm.wxs"
-    out.write_text(transform(WXS.read_text(encoding="utf-8")), encoding="utf-8")
+    # The base .wxs references this product icon but pyappdist doesn't emit it here.
+    shutil.copyfile(ROOT / "assets" / "icon.ico", BUILD / "pyappdist_product.ico")
+    CUSTOM_WXS.write_text(transform(BASE_WXS.read_text(encoding="utf-8")), encoding="utf-8")
 
+    version = re.search(r'Version="([^"]+)"', CUSTOM_WXS.read_text(encoding="utf-8")).group(1)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    version = re.search(r'Version="([^"]+)"', out.read_text(encoding="utf-8")).group(1)
     msi = OUT_DIR / f"process-priority-manager-{version}.msi"
     run(
-        "wix", "build", str(out), str(ROOT / "installer" / "UI.wxs"),
+        "wix", "build", str(CUSTOM_WXS), str(INSTALLER / "UI.wxs"),
         "-ext", "WixToolset.UI.wixext", "-culture", "ja-JP",
-        "-b", str(BUILD / "image"), "-b", str(BUILD),
+        "-b", str(BUILD / "image"), "-b", str(BUILD), "-b", str(INSTALLER),
         "-arch", "x64", "-o", str(msi),
     )
     print("OK:", msi)

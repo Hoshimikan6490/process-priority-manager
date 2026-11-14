@@ -1,39 +1,159 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    インストーラーの画面構成。
+    使用許諾契約 → インストール範囲(現在のユーザー/全ユーザー) → インストール先 → 更新設定 → インストール
+    使用許諾契約の本文は installer/license.rtf (WordPad 等で編集可能) です。
+  -->
   <Fragment>
-    <!-- 既定では更新確認を有効にする。silent install では CHECKUPDATES=0 で無効化可能 -->
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+
+    <!-- 更新の定期確認。空/0 にすると製品機能 UpdateCheck が無効になる (サイレント時: CHECKUPDATES=0) -->
     <Property Id="CHECKUPDATES" Value="1" />
 
-    <UI>
-      <Dialog Id="UpdateOptionsDlg" Width="370" Height="270" Title="[ProductName] 更新設定">
-        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
-        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}更新の確認" />
-        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="GitHub Releases を基にした更新確認の設定を選択してください。" />
-        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+    <UI Id="PPM_UI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
 
-        <Control Id="CheckUpdatesBox" Type="CheckBox" X="20" Y="60" Width="330" Height="18" Property="CHECKUPDATES" CheckBoxValue="1" Text="新しいバージョンを定期的に確認する(&amp;U)" />
-        <Control Id="CheckUpdatesNote" Type="Text" X="38" Y="82" Width="315" Height="45" Transparent="yes" NoPrefix="yes" Text="アプリ起動中、GitHub Releases に新しいバージョンがないかを定期的に確認し、見つかった場合は通知します。この設定はインストール後にアプリの設定画面から変更できます。" />
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="ExitDialog" />
+      <DialogRef Id="LicenseAgreementDlg" />
+      <DialogRef Id="InstallDirDlg" />
+      <DialogRef Id="VerifyReadyDlg" />
+      <DialogRef Id="MaintenanceWelcomeDlg" />
+      <DialogRef Id="MaintenanceTypeDlg" />
+      <DialogRef Id="WaitForCostingDlg" />
+      <DialogRef Id="OutOfDiskDlg" />
+      <DialogRef Id="OutOfRbDiskDlg" />
 
+      <!-- ようこそ画面 -->
+      <Binary Id="PPM_LogoIcon" SourceFile="logo.ico" />
+      <Dialog Id="PPM_WelcomeDlg" Width="370" Height="270" Title="[ProductName] セットアップ">
+        <Control Id="Logo" Type="Icon" IconSize="48" X="318" Y="14" Width="36" Height="36" TabSkip="no" Text="PPM_LogoIcon" />
+        <Control Id="Title" Type="Text" X="20" Y="20" Width="285" Height="40" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Bigger}[ProductName] セットアップへようこそ" />
+        <Control Id="Description" Type="Text" X="20" Y="75" Width="330" Height="120" Transparent="yes" NoPrefix="yes" Text="このウィザードでは [ProductName] をコンピューターにインストールします。&#xD;&#xA;&#xD;&#xA;続行するには [次へ] をクリックしてください。中止するには [キャンセル] をクリックしてください。" />
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
-        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
-          <Publish Event="NewDialog" Value="InstallDirDlg" />
-        </Control>
-        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
-        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" />
         </Control>
       </Dialog>
 
-      <!--
-        WixUI_Advanced の画面遷移を次のように差し替える:
-          ようこそ → インストール範囲(現在のユーザー/全ユーザー) → インストール先 → 更新設定 → インストール
-        (標準では「現在のユーザー」選択時にインストール先画面が省略されるため、後から高い Order で上書きする)
-      -->
-      <Publish Dialog="InstallScopeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="8" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="UpdateOptionsDlg" Order="5" Condition="1" />
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="UpdateOptionsDlg" Order="4" Condition="NOT Installed" />
+      <!-- インストール範囲: 標準の InstallScopeDlg は文言が 2 行になると見切れるため独自に定義 -->
+      <Dialog Id="PPM_ScopeDlg" Width="370" Height="270" Title="[ProductName] セットアップ">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}インストール範囲" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="310" Height="15" Transparent="yes" NoPrefix="yes" Text="[ProductName] を使用するユーザーを選択してください。" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="Scopes" Type="RadioButtonGroup" X="20" Y="60" Width="330" Height="150" Property="WixAppFolder">
+          <RadioButtonGroup Property="WixAppFolder">
+            <RadioButton Value="WixPerUserFolder" X="0" Y="0" Width="330" Height="18" Text="現在のユーザーのみ(&amp;U)" />
+            <RadioButton Value="WixPerMachineFolder" X="0" Y="75" Width="330" Height="18" Text="このコンピューターのすべてのユーザー(&amp;A)" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="PerUserDescription" Type="Text" X="38" Y="80" Width="310" Height="50" Transparent="yes" NoPrefix="yes" Text="[ProductName] を現在のユーザー専用のフォルダーにインストールします。管理者権限は不要です。" />
+        <Control Id="PerMachineDescription" Type="Text" X="38" Y="155" Width="310" Height="50" Transparent="yes" NoPrefix="yes" Text="[ProductName] をコンピューターごとのフォルダーにインストールし、すべてのユーザーが使用できるようにします。管理者権限が必要です。" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- 更新設定: 説明とチェックボックスのみ。最後の画面なので「インストール」ボタンを持つ -->
+      <Dialog Id="UpdateOptionsDlg" Width="370" Height="270" Title="[ProductName] セットアップ">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}更新の確認" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="310" Height="15" Transparent="yes" NoPrefix="yes" Text="更新確認の設定を選択して「インストール」をクリックしてください。" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="CheckUpdatesBox" Type="CheckBox" X="20" Y="62" Width="330" Height="18" Property="CHECKUPDATES" CheckBoxValue="1" Text="新しいバージョンを定期的に確認する(&amp;U)" />
+        <Control Id="CheckUpdatesNote" Type="Text" X="38" Y="86" Width="310" Height="60" Transparent="yes" NoPrefix="yes" Text="アプリの実行中、GitHub Releases に新しいバージョンがないかを定期的に確認し、見つかった場合は通知します。この設定はインストール後もアプリの設定画面から変更できます。" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Install" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="インストール(&amp;I)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- ようこそ -->
+      <Publish Dialog="PPM_WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" />
+
+      <!-- 使用許諾契約 -->
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="PPM_WelcomeDlg" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="PPM_ScopeDlg" Condition="LicenseAccepted = &quot;1&quot;" />
+
+      <!-- インストール範囲 -->
+      <Publish Dialog="PPM_ScopeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" Order="1" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="[WixAppFolder]" Value="WixPerUserFolder" Order="1" Condition="1 AND NOT Privileged" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="[ALLUSERS]" Value="{}" Order="2" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="[ALLUSERS]" Value="1" Order="3" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="[APPLICATIONFOLDER]" Value="[WixPerUserFolder]" Order="4" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="[APPLICATIONFOLDER]" Value="[WixPerMachineFolder]" Order="5" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+      <Publish Dialog="PPM_ScopeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6" />
+
+      <!-- インストール先 -->
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="PPM_ScopeDlg" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="UpdateOptionsDlg" Order="4" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="[_BrowseProperty]" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" />
+
+      <!-- 更新設定 (インストール開始) -->
+      <Publish Dialog="UpdateOptionsDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="SpawnWaitDialog" Value="WaitForCostingDlg" Order="1" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="EndDialog" Value="Return" Order="2" Condition="OutOfDiskSpace &lt;&gt; 1" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="SpawnDialog" Value="OutOfRbDiskDlg" Order="3" Condition="OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="EnableRollback" Value="False" Order="4" Condition="OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="EndDialog" Value="Return" Order="5" Condition="OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="UpdateOptionsDlg" Control="Install" Event="SpawnDialog" Value="OutOfDiskDlg" Order="6" Condition="(OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;)" />
+
+      <!-- 終了 -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <!-- メンテナンス (変更・修復・削除) -->
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="UpdateOptionsDlg" Order="2" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" Order="2" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" Order="2" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
     </UI>
+
+    <InstallUISequence>
+      <!-- Show は 1 つだけにする。複数あると EndDialog 後に次の Show が実行され、前の画面に戻って見える -->
+      <Show Dialog="PPM_WelcomeDlg" Before="ProgressDlg" Condition="NOT Installed" />
+    </InstallUISequence>
+
+    <!-- 既定のインストール先 (per-user: %LOCALAPPDATA%\Apps、per-machine: Program Files)。
+         GUI/サイレントのどちらでも APPLICATIONFOLDER 未指定ならスコープに応じて設定する -->
+    <SetProperty Id="WixPerUserFolder" Value="[LocalAppDataFolder]Apps\[ApplicationFolderName]" Sequence="both" After="CostInitialize" />
+    <SetProperty Id="WixPerMachineFolder" Value="[ProgramFiles64Folder][ApplicationFolderName]" Sequence="both" After="CostInitialize" />
+    <SetProperty Id="APPLICATIONFOLDER" Action="PPM_SetUserAppFolder" Value="[WixPerUserFolder]" Sequence="both" Before="CostFinalize" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=&quot;&quot; OR (ALLUSERS=2 AND (NOT Privileged)))" />
+    <SetProperty Id="APPLICATIONFOLDER" Action="PPM_SetMachineAppFolder" Value="[WixPerMachineFolder]" Sequence="both" Before="CostFinalize" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=1 OR (ALLUSERS=2 AND Privileged))" />
   </Fragment>
 </Wix>

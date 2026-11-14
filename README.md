@@ -54,9 +54,12 @@ python installer/build_msi.py
 ```
 `appdist/windowsmsi/dist/` にMSIが出力されます。
 
-#### インストール時に選択できる項目
-- 現在のユーザー向け / すべてのユーザー向け
+#### インストーラーの流れ・選択できる項目
+ようこそ → 使用許諾契約 → インストール範囲 → インストール先 → 更新設定 → インストール
+- 現在のユーザー向け / すべてのユーザー向け（インストール範囲）
 - インストール先フォルダー（ドライブ）
-- GitHub Releases を基にした更新の定期確認の有無（アプリの設定画面からも変更可能）
+- 更新の定期確認（GitHub Releases）のチェック有無（アプリの設定画面からも変更可能）
 
-サイレントインストール時は `msiexec /i <msi> /qn APPLICATIONFOLDER=D:\Apps\PPM CHECKUPDATES=0` のようにプロパティで指定できます（全ユーザー向けは `ALLUSERS=1`）。
+使用許諾契約の本文は `installer/license.rtf` です。WordPad等で編集してから再ビルドしてください。
+
+サイレントインストール例: `msiexec /i <msi> /qn APPLICATIONFOLDER=D:\Apps\PPM CHECKUPDATES=0`（`CHECKUPDATES=0` で更新確認なし、省略で更新確認あり。全ユーザー向けは `ALLUSERS=1`）。
