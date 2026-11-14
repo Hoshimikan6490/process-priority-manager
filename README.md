@@ -48,7 +48,15 @@ Releasesにあるデータを使用してください
 ```
 pip install -r requirements.txt
 ```
-完成したファイルは以下のコマンドでbuild出来ます。なお、ローカルユーザーにuvx.exe（およびuv）をインストールしている場合のコマンドです。
+MSIインストーラーは以下のコマンドでbuild出来ます（uv、およびWiX Toolset v4以降 + `WixToolset.UI.wixext` が必要です）。
 ```
-& "$env:APPDATA\Python\Python314\Scripts\uvx.exe" pyappdist build windowsmsi
+python installer/build_msi.py
 ```
+`appdist/windowsmsi/dist/` にMSIが出力されます。
+
+#### インストール時に選択できる項目
+- 現在のユーザー向け / すべてのユーザー向け
+- インストール先フォルダー（ドライブ）
+- GitHub Releases を基にした更新の定期確認の有無（アプリの設定画面からも変更可能）
+
+サイレントインストール時は `msiexec /i <msi> /qn APPLICATIONFOLDER=D:\Apps\PPM CHECKUPDATES=0` のようにプロパティで指定できます（全ユーザー向けは `ALLUSERS=1`）。

@@ -34,10 +34,13 @@ name = "process-priority-manager"
 title = "Process Priority Manager"
 entry = "main"
 gui = true
+app-entry = true
+icon = { windows = "assets/icon.ico" }
 
 [[tool.pyappdist.targets]]
 name = "windowsmsi"
 platform = "windows-x86_64"
 format = "msi"
 manufacturer = "Hoshimikan6490"
+scope = "user"
 upgrade-code = "bbb0ee3f-0e4b-4079-a4a4-d5f55ce9e48b"

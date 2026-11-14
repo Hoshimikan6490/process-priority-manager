@@ -30,6 +30,7 @@ class ConfigManager:
             "start_with_windows": False,
             "minimize_to_tray": False,
             "auto_monitor": False,
+            "check_updates": True,
         },
         "priority_rules": [],
     }
@@ -43,9 +44,30 @@ class ConfigManager:
         appdata = os.environ.get("APPDATA") or str(Path.home())
         return Path(appdata) / "Process Priority Manager" / "config.json"
 
+    @staticmethod
+    def _installer_check_updates():
+        """Read the update-check choice made in the MSI installer (None if absent)."""
+        try:
+            import winreg
+        except ImportError:
+            return None
+        key_path = r"Software\Hoshimikan6490\Process Priority Manager"
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(hive, key_path) as key:
+                    value, _ = winreg.QueryValueEx(key, "CheckUpdates")
+            except OSError:
+                continue
+            return str(value).strip() == "1"
+        return None
+
     @classmethod
     def _default_config(cls):
-        return copy.deepcopy(cls.DEFAULT_CONFIG)
+        config = copy.deepcopy(cls.DEFAULT_CONFIG)
+        installer_choice = cls._installer_check_updates()
+        if installer_choice is not None:
+            config["ui"]["check_updates"] = installer_choice
+        return config
 
     @staticmethod
     def _strict_bool(value):
@@ -76,6 +98,9 @@ class ConfigManager:
             ),
             "minimize_to_tray": self._strict_bool(ui_loaded.get("minimize_to_tray")),
             "auto_monitor": self._strict_bool(ui_loaded.get("auto_monitor")),
+            "check_updates": ui_loaded["check_updates"]
+            if isinstance(ui_loaded.get("check_updates"), bool)
+            else default_ui["check_updates"],
         }
 
     @staticmethod

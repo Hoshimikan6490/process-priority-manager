@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <!-- 既定では更新確認を有効にする。silent install では CHECKUPDATES=0 で無効化可能 -->
+    <Property Id="CHECKUPDATES" Value="1" />
+
+    <UI>
+      <Dialog Id="UpdateOptionsDlg" Width="370" Height="270" Title="[ProductName] 更新設定">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}更新の確認" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="GitHub Releases を基にした更新確認の設定を選択してください。" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="CheckUpdatesBox" Type="CheckBox" X="20" Y="60" Width="330" Height="18" Property="CHECKUPDATES" CheckBoxValue="1" Text="新しいバージョンを定期的に確認する(&amp;U)" />
+        <Control Id="CheckUpdatesNote" Type="Text" X="38" Y="82" Width="315" Height="45" Transparent="yes" NoPrefix="yes" Text="アプリ起動中、GitHub Releases に新しいバージョンがないかを定期的に確認し、見つかった場合は通知します。この設定はインストール後にアプリの設定画面から変更できます。" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!--
+        WixUI_Advanced の画面遷移を次のように差し替える:
+          ようこそ → インストール範囲(現在のユーザー/全ユーザー) → インストール先 → 更新設定 → インストール
+        (標準では「現在のユーザー」選択時にインストール先画面が省略されるため、後から高い Order で上書きする)
+      -->
+      <Publish Dialog="InstallScopeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="8" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="UpdateOptionsDlg" Order="5" Condition="1" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="UpdateOptionsDlg" Order="4" Condition="NOT Installed" />
+    </UI>
+  </Fragment>
+</Wix>

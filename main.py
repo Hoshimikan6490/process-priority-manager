@@ -1,11 +1,15 @@
 """Process Priority Manager - Main application"""
 
+import queue
+import threading
 import tkinter as tk
+import webbrowser
 from tkinter import messagebox, ttk
 from types import MappingProxyType
 
 import psutil
 
+from src import update_checker
 from src.config_manager import ConfigManager
 from src.i18n import I18n
 from src.monitor import ProcessMonitor
@@ -83,6 +87,12 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(self.refresh_interval, self._periodic_refresh)
 
+        # Periodic update check (GitHub Releases)
+        self._update_results = queue.Queue()
+        self._notified_version = None
+        self.after(3000, self._schedule_update_check)
+        self.after(1000, self._poll_update_result)
+
     def _build_callbacks(self):
         """Return the callback table used by the UI builder."""
         return {
@@ -93,6 +103,7 @@ class App(tk.Tk):
             "on_startup_toggle": self._on_startup_toggle,
             "on_tray_toggle": self._save_config,
             "on_auto_monitor_toggle": self._on_auto_monitor_toggle,
+            "on_check_updates_toggle": self._on_check_updates_toggle,
             "on_search": self.refresh_process_list,
             "on_refresh": self.refresh_process_list,
             "on_priority_keyword_change": self.refresh_priority_process_list,
@@ -542,6 +553,7 @@ class App(tk.Tk):
         )
         self.ui_builder.tray_var.set(bool(ui_config.get("minimize_to_tray", False)))
         self.ui_builder.auto_monitor_var.set(bool(ui_config.get("auto_monitor", False)))
+        self.ui_builder.check_updates_var.set(bool(ui_config.get("check_updates", True)))
 
     def _build_config_payload(self):
         """Build config object from current app state."""
@@ -560,9 +572,47 @@ class App(tk.Tk):
                 "auto_monitor": bool(self.ui_builder.auto_monitor_var.get())
                 if self.ui_builder.settings_frame
                 else False,
+                "check_updates": self._updates_enabled(),
             },
             "priority_rules": self.priority_rules,
         }
+
+    # ===== Update check =====
+
+    def _updates_enabled(self):
+        if self.ui_builder.settings_frame:
+            return bool(self.ui_builder.check_updates_var.get())
+        return bool(self.config.get("ui", {}).get("check_updates", True))
+
+    def _schedule_update_check(self):
+        """Run an update check in the background, then repeat every 24 hours."""
+        if self._updates_enabled():
+            threading.Thread(target=self._update_worker, daemon=True).start()
+        self.after(update_checker.CHECK_INTERVAL_MS, self._schedule_update_check)
+
+    def _update_worker(self):
+        self._update_results.put(update_checker.check_for_update())
+
+    def _poll_update_result(self):
+        """Pick up background check results on the Tk thread."""
+        try:
+            result = self._update_results.get_nowait()
+        except queue.Empty:
+            result = None
+        if result and self._updates_enabled() and result[0] != self._notified_version:
+            tag, url = result
+            self._notified_version = tag
+            if messagebox.askyesno(
+                self.i18n.t("update_available_title"),
+                self.i18n.t("update_available_message").format(version=tag),
+            ):
+                webbrowser.open(url)
+        self.after(1000, self._poll_update_result)
+
+    def _on_check_updates_toggle(self):
+        self._save_config()
+        if self._updates_enabled():
+            threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _save_config(self):
         """Persist current state to config.json."""

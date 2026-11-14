@@ -206,6 +206,7 @@ class UIBuilder:
 		self.startup_var = tk.BooleanVar(value=False)
 		self.tray_var = tk.BooleanVar(value=False)
 		self.auto_monitor_var = tk.BooleanVar(value=False)
+		self.check_updates_var = tk.BooleanVar(value=True)
 		
 		ttk.Checkbutton(
 			self.settings_frame,
@@ -228,6 +229,13 @@ class UIBuilder:
 			command=callbacks.get('on_auto_monitor_toggle', lambda: None)
 		).grid(row=6, column=0, columnspan=2, sticky='w')
 
+		ttk.Checkbutton(
+			self.settings_frame,
+			text=self.i18n.t('check_updates_checkbox'),
+			variable=self.check_updates_var,
+			command=callbacks.get('on_check_updates_toggle', lambda: None)
+		).grid(row=7, column=0, columnspan=2, sticky='w')
+
 		# リポジトリへのURLリンクボタン
 		repo_url = "https://github.com/Hoshimikan6490/process-priority-manager"
 		repo_button = ttk.Button(
@@ -235,7 +243,7 @@ class UIBuilder:
 			text=self.i18n.t('open_github_repository'),
 			command=lambda: webbrowser.open(repo_url)
 		)
-		repo_button.grid(row=7, column=0, columnspan=2, sticky='w', pady=(10, 0))
+		repo_button.grid(row=8, column=0, columnspan=2, sticky='w', pady=(10, 0))
 
 		# 設定ファイルを開くボタン
 		open_config_button = ttk.Button(
@@ -243,7 +251,7 @@ class UIBuilder:
 			text=self.i18n.t('open_config_file'),
 			command=lambda: os.startfile(self.config_path)
 		)
-		open_config_button.grid(row=8, column=0, columnspan=2, sticky='w', pady=(4, 0))
+		open_config_button.grid(row=9, column=0, columnspan=2, sticky='w', pady=(4, 0))
 
 		# スペースの調整
 		for child in self.settings_frame.winfo_children():
