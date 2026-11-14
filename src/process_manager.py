@@ -32,18 +32,3 @@ class ProcessManager:
 		# Sort by process name
 		procs.sort(key=lambda x: x[2].lower())
 		return procs
-	
-	@staticmethod
-	def get_process_by_pid(pid):
-		"""Get process by PID
-		
-		Args:
-			pid: Process ID
-		
-		Returns:
-			Process object or None if not found
-		"""
-		try:
-			return psutil.Process(pid)
-		except (psutil.NoSuchProcess, psutil.AccessDenied):
-			return None

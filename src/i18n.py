@@ -1,7 +1,7 @@
 """Internationalization (i18n) manager for loading translations"""
-import os
 import json
 import locale as locale_module
+import os
 
 
 class I18n:
@@ -26,7 +26,7 @@ class I18n:
 				try:
 					with open(filepath, 'r', encoding='utf-8') as f:
 						self.translations[lang_code] = json.load(f)
-				except Exception as e:
+				except (OSError, ValueError) as e:
 					print(f"Failed to load {filename}: {e}")
 	
 	def _detect_system_language(self):
@@ -37,7 +37,8 @@ class I18n:
 				lang_code = system_lang.split('_')[0].lower()[:2]
 				if lang_code in self.translations:
 					self.current_lang = lang_code
-		except Exception:
+		except (ValueError, AttributeError):
+			# Locale could not be determined; keep the default language.
 			pass
 	
 	def set_language(self, lang_code):

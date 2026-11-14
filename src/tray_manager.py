@@ -4,7 +4,7 @@ import threading
 try:
 	import pystray
 	from PIL import Image, ImageDraw
-except Exception:
+except ImportError:
 	pystray = None
 
 
@@ -38,23 +38,11 @@ class TrayManager:
 		
 		# Create menu
 		menu_items = [
-			pystray.MenuItem(
-				'Show' if not self.callbacks.get('show_label') else self.callbacks.get('show_label'),
-				self._on_show_click
-			),
-			pystray.MenuItem(
-				'Exit' if not self.callbacks.get('exit_label') else self.callbacks.get('exit_label'),
-				self._on_exit_click
-			),
+			pystray.MenuItem(self.callbacks.get('show_label') or 'Show', self._on_show_click),
+			pystray.MenuItem(self.callbacks.get('exit_label') or 'Exit', self._on_exit_click),
 		]
 		
-		menu = pystray.Menu(*menu_items)
-		self.tray_icon = pystray.Icon(
-			'ppm',
-			image,
-			self.app_title,
-			menu
-		)
+		self.tray_icon = pystray.Icon('ppm', image, self.app_title, pystray.Menu(*menu_items))
 	
 	def _on_show_click(self, icon, item):
 		"""Handle show menu item click"""
@@ -79,5 +67,6 @@ class TrayManager:
 		try:
 			if self.tray_icon:
 				self.tray_icon.stop()
-		except Exception:
+		except (AttributeError, RuntimeError):
+			# Icon was never started or is already stopped.
 			pass

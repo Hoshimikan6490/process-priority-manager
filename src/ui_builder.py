@@ -1,23 +1,24 @@
 """UI builder module for creating application interface"""
-import tkinter as tk
-from tkinter import ttk
-import webbrowser
 import os
-from src.config_manager import ConfigManager
+import tkinter as tk
+import webbrowser
+from tkinter import ttk
 
 
 class UIBuilder:
 	"""Builds and manages UI components"""
 	
-	def __init__(self, app, i18n):
+	def __init__(self, app, i18n, config_path=None):
 		"""Initialize UI builder
 		
 		Args:
 			app: Main application window
 			i18n: I18n instance for translations
+			config_path: Path of the config file opened from settings
 		"""
 		self.app = app
 		self.i18n = i18n
+		self.config_path = config_path
 		self.settings_visible = False
 		self.settings_window = None
 		self.settings_frame = None
@@ -28,7 +29,7 @@ class UIBuilder:
 			try:
 				if self.settings_window.winfo_exists():
 					return
-			except Exception:
+			except tk.TclError:
 				pass
 
 		self.settings_window = tk.Toplevel(self.app)
@@ -44,7 +45,7 @@ class UIBuilder:
 			return
 		try:
 			self.settings_window.withdraw()
-		except Exception:
+		except tk.TclError:
 			pass
 		self.settings_visible = False
 
@@ -68,7 +69,7 @@ class UIBuilder:
 			x = app_x + max(0, (app_w - win_w) // 2)
 			y = app_y + max(0, (app_h - win_h) // 2)
 			self.settings_window.geometry(f'+{x}+{y}')
-		except Exception:
+		except tk.TclError:
 			pass
 	
 	def create_toolbar(self, toggle_settings_callback):
@@ -95,7 +96,7 @@ class UIBuilder:
 		if hasattr(self, 'toolbar_title'):
 			try:
 				self.toolbar_title.configure(text=self.i18n.t('app_title'))
-			except Exception:
+			except tk.TclError:
 				pass
 	
 	def create_settings_panel(self, callbacks):
@@ -109,7 +110,7 @@ class UIBuilder:
 		if self.settings_frame is not None:
 			try:
 				self.settings_frame.destroy()
-			except Exception:
+			except tk.TclError:
 				pass
 
 		self.settings_frame = ttk.Frame(self.settings_window, relief='ridge', padding=8)
@@ -240,7 +241,7 @@ class UIBuilder:
 		open_config_button = ttk.Button(
 			self.settings_frame,
 			text=self.i18n.t('open_config_file'),
-			command=lambda: os.startfile(ConfigManager._resolve_config_path())
+			command=lambda: os.startfile(self.config_path)
 		)
 		open_config_button.grid(row=8, column=0, columnspan=2, sticky='w', pady=(4, 0))
 

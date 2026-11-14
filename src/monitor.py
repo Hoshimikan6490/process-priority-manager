@@ -1,8 +1,13 @@
 """Auto-monitoring module for continuous priority management"""
+import logging
 import threading
 import time
+
 import psutil
+
 from .priority_manager import PriorityManager
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessMonitor:
@@ -63,19 +68,16 @@ class ProcessMonitor:
 										continue
 
 									try:
-										current = p.nice()
-									except Exception:
-										current = None
-
-									if current != desired_value:
-										try:
+										if p.nice() != desired_value:
 											p.nice(desired_value)
-										except Exception:
-											pass
+									except psutil.Error:
+										# Process exited or access denied; skip it.
+										pass
 									break
-							except (psutil.NoSuchProcess, psutil.AccessDenied):
+							except psutil.Error:
 								continue
-					except Exception:
+					except psutil.Error:
+						# Process enumeration failed; retry on the next cycle.
 						pass
 				
 				# Sleep according to update interval
@@ -90,4 +92,6 @@ class ProcessMonitor:
 					time.sleep(1)
 			
 			except Exception:
+				# Keep the monitor thread alive on unexpected errors.
+				logger.exception('Priority monitor loop failed')
 				time.sleep(1)

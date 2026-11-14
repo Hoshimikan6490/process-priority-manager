@@ -1,11 +1,11 @@
 """System startup registration module"""
+import os
 import platform
 import sys
-import os
 
 try:
 	import winreg
-except Exception:
+except ImportError:
 	winreg = None
 
 
@@ -25,8 +25,11 @@ class StartupManager:
 		if platform.system() != 'Windows' or winreg is None:
 			raise RuntimeError('Startup registration is only supported on Windows')
 		
-		key_path = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-		exe = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
+		key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+		if getattr(sys, 'frozen', False):
+			exe = f'"{sys.executable}"'
+		else:
+			exe = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
 		
 		with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_ALL_ACCESS) as key:
 			if enable:
@@ -36,12 +39,3 @@ class StartupManager:
 					winreg.DeleteValue(key, 'ProcessPriorityManager')
 				except FileNotFoundError:
 					pass
-	
-	@staticmethod
-	def is_supported():
-		"""Check if startup registration is supported
-		
-		Returns:
-			True if supported on this system
-		"""
-		return platform.system() == 'Windows' and winreg is not None

@@ -1,5 +1,6 @@
 """Process priority management module"""
 import platform
+
 import psutil
 
 
@@ -53,19 +54,3 @@ class PriorityManager:
 		
 		p = psutil.Process(pid)
 		p.nice(priority_value)
-	
-	@staticmethod
-	def get_current_priority(pid):
-		"""Get current process priority
-		
-		Args:
-			pid: Process ID
-		
-		Returns:
-			Current priority value or None if error
-		"""
-		try:
-			p = psutil.Process(pid)
-			return p.nice()
-		except Exception:
-			return None
