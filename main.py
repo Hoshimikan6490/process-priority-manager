@@ -9,15 +9,22 @@ from types import MappingProxyType
 
 import psutil
 
+try:
+    from PIL import ImageTk
+except ImportError:
+    ImageTk = None
+
 from src import update_checker
 from src.config_manager import ConfigManager
 from src.i18n import I18n
 from src.monitor import ProcessMonitor
 from src.priority_manager import PriorityManager
 from src.process_manager import ProcessManager
+from src.resources import load_logo
 from src.system_startup import StartupManager
 from src.tray_manager import TrayManager
 from src.ui_builder import UIBuilder
+from src.widgets import ToggleSwitch
 
 
 class App(tk.Tk):
@@ -47,11 +54,12 @@ class App(tk.Tk):
 
         self.title(self.i18n.t("app_title"))
         self.geometry("800x500")
+        self._set_window_icon()
 
         # Initialize managers
         self.ui_builder = UIBuilder(self, self.i18n, self.config_manager.config_path)
         self.monitor = ProcessMonitor()
-        self.tray_manager = None
+        self.tray_manager = None  # created by _sync_tray()
 
         # Style
         self.style = ttk.Style(self)
@@ -77,11 +85,13 @@ class App(tk.Tk):
         self._build_ui()
         self._update_refresh_interval()
 
-        # Start monitoring if enabled in config
-        if self.ui_builder.auto_monitor_var.get():
-            self.monitor.start(
-                self._get_active_priority_rules, self._get_update_interval
-            )
+        # Priorities are always monitored; individual rules are toggled on/off.
+        self._start_monitor()
+
+        # System tray (the icon lives in the tray from startup when enabled)
+        self._tray_events = queue.Queue()
+        self._sync_tray()
+        self.after(200, self._poll_tray_events)
 
         # Setup window close handler
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -89,9 +99,19 @@ class App(tk.Tk):
 
         # Periodic update check (GitHub Releases)
         self._update_results = queue.Queue()
+        self._install_results = queue.Queue()
         self._notified_version = None
+        self._downloading = False
         self.after(3000, self._schedule_update_check)
         self.after(1000, self._poll_update_result)
+
+    def _set_window_icon(self):
+        """Replace the default Tk feather icon with the app logo."""
+        image = load_logo(64)
+        if image is None or ImageTk is None:
+            return
+        self._icon_image = ImageTk.PhotoImage(image)  # keep a reference
+        self.iconphoto(True, self._icon_image)
 
     def _build_callbacks(self):
         """Return the callback table used by the UI builder."""
@@ -101,15 +121,17 @@ class App(tk.Tk):
             "on_proc_freq_change": self._on_proc_freq_select,
             "on_prio_freq_change": self._on_prio_freq_select,
             "on_startup_toggle": self._on_startup_toggle,
-            "on_tray_toggle": self._save_config,
-            "on_auto_monitor_toggle": self._on_auto_monitor_toggle,
+            "on_tray_toggle": self._on_tray_toggle,
             "on_check_updates_toggle": self._on_check_updates_toggle,
+            "on_check_updates_now": self._on_check_updates_now,
             "on_search": self.refresh_process_list,
             "on_refresh": self.refresh_process_list,
             "on_priority_keyword_change": self.refresh_priority_process_list,
             "on_priority_refresh": self.refresh_priority_process_list,
             "on_priority_process_select": self._on_priority_process_select,
             "on_apply_priority_rule": self.apply_priority_rule,
+            "on_enable_priority_rules": lambda: self.set_checked_rules_enabled(True),
+            "on_disable_priority_rules": lambda: self.set_checked_rules_enabled(False),
             "on_delete_priority_rules": self.delete_checked_priority_rules,
         }
 
@@ -151,6 +173,9 @@ class App(tk.Tk):
                 "dark_text": "#1d1d1d",
                 "panel_bg": "#3a3a3a",
                 "entry_bg": "#404040",
+                "list_bg": "black",
+                "list_fg": "white",
+                "list_border": "white",
                 "selection": "#4a90d9",
             }
         return {
@@ -159,6 +184,9 @@ class App(tk.Tk):
             "dark_text": "black",
             "panel_bg": "#f0f0f0",
             "entry_bg": "white",
+            "list_bg": "white",
+            "list_fg": "black",
+            "list_border": "#a0a0a0",
             "selection": "#4a90d9",
         }
 
@@ -171,11 +199,11 @@ class App(tk.Tk):
             self.i18n.set_language(new_lang)
             self._save_config()
             self._refresh_ui_text()
+            self._sync_tray(restart=True)
 
     def _refresh_ui_text(self):
         """Refresh all UI text after language change"""
         self.title(self.i18n.t("app_title"))
-        self.ui_builder.update_toolbar_title()
         if self.ui_builder.settings_window is not None:
             try:
                 self.ui_builder.settings_window.title(self.i18n.t("app_title"))
@@ -210,7 +238,13 @@ class App(tk.Tk):
         self.style.configure("TLabelframe", background=bg)
         self.style.configure("TLabelframe.Label", background=bg, foreground=fg)
         self.style.configure("TNotebook", background=bg)
-        self.style.configure("TNotebook.Tab", background=panel_bg, foreground=dark_text)
+        self.style.configure(
+            "TNotebook.Tab",
+            background=panel_bg,
+            foreground=dark_text,
+            padding=(20, 8),
+            font=("Segoe UI", 11),
+        )
         self.style.map(
             "TNotebook.Tab",
             background=[("selected", panel_bg), ("active", panel_bg)],
@@ -224,12 +258,12 @@ class App(tk.Tk):
         for listbox in listboxes:
             if listbox is not None:
                 listbox.configure(
-                    bg="black",
-                    fg="white",
+                    bg=palette["list_bg"],
+                    fg=palette["list_fg"],
                     selectbackground=selection,
                     selectforeground="white",
-                    highlightbackground="white",
-                    highlightcolor="white",
+                    highlightbackground=palette["list_border"],
+                    highlightcolor=palette["list_border"],
                     bd=1,
                     relief="solid",
                     highlightthickness=1,
@@ -250,6 +284,7 @@ class App(tk.Tk):
         if key:
             self.theme_key.set(key)
         self._apply_theme()
+        self.refresh_priority_rules_table()  # switch backgrounds follow the theme
         self._save_config()
 
     def _update_refresh_interval(self):
@@ -272,6 +307,7 @@ class App(tk.Tk):
         if key:
             self.prio_freq_key.set(key)
         self._save_config()
+        self._restart_monitor()  # "first only" ends the loop; a new interval re-arms it
 
     # ===== Process list management =====
 
@@ -348,7 +384,7 @@ class App(tk.Tk):
             keyword_var.set(parts[1])
 
     def refresh_priority_rules_table(self):
-        """Render active priority rules in table-like rows."""
+        """Render registered priority rules (checkbox / on-off switch / keyword / priority)."""
         if not self.priority_widgets:
             return
 
@@ -356,29 +392,78 @@ class App(tk.Tk):
         if rows_frame is None:
             return
 
+        # Keep the user's checkmarks across rebuilds (e.g. after a theme change).
+        previously_checked = {
+            kw.lower()
+            for var, kw, _p in self.priority_widgets.get("rule_check_vars", [])
+            if var.get()
+        }
         for child in rows_frame.winfo_children():
             child.destroy()
 
+        switch_bg = self._get_theme_palette()["bg"]
         check_vars = []
         for idx, rule in enumerate(self.priority_rules):
-            if not rule.get("enabled", True):
-                continue
-
-            selected_var = tk.BooleanVar(value=False)
-            ttk.Checkbutton(rows_frame, variable=selected_var).grid(
+            selected_var = tk.BooleanVar(
+                value=rule["keyword"].lower() in previously_checked
+            )
+            ttk.Checkbutton(rows_frame, variable=selected_var, width=4).grid(
                 row=idx, column=0, sticky="w", padx=(0, 8), pady=2
             )
-            ttk.Label(rows_frame, text=rule["keyword"], width=30).grid(
-                row=idx, column=1, sticky="w", padx=(0, 8), pady=2
+            ToggleSwitch(
+                rows_frame,
+                value=rule.get("enabled", True),
+                command=lambda value, r=rule: self._set_rule_enabled(r, value),
+                bg=switch_bg,
+            ).grid(row=idx, column=1, sticky="w", padx=(0, 8), pady=2)
+            ttk.Label(rows_frame, text=rule["keyword"], width=28).grid(
+                row=idx, column=2, sticky="w", padx=(0, 8), pady=2
             )
             ttk.Label(
                 rows_frame,
                 text=self._priority_internal_to_display(rule["priority"]),
-                width=16,
-            ).grid(row=idx, column=2, sticky="w", pady=2)
+                width=14,
+            ).grid(row=idx, column=3, sticky="w", pady=2)
             check_vars.append((selected_var, rule["keyword"], rule["priority"]))
 
         self.priority_widgets["rule_check_vars"] = check_vars
+
+    def _set_rule_enabled(self, rule, enabled):
+        """Switch a single rule on/off and apply the change to the monitor."""
+        rule["enabled"] = bool(enabled)
+        self._save_config()
+        self._restart_monitor()
+
+    def _checked_keywords(self):
+        """Lower-cased keywords of the rows whose checkbox is ticked."""
+        if not self.priority_widgets:
+            return []
+        return [
+            kw.lower()
+            for var, kw, _p in self.priority_widgets.get("rule_check_vars", [])
+            if var.get()
+        ]
+
+    def set_checked_rules_enabled(self, enabled):
+        """Enable/disable all checked rules at once."""
+        selected = self._checked_keywords()
+        if not selected:
+            messagebox.showinfo(
+                self.i18n.t("msg_info"), self.i18n.t("msg_no_checked_setting")
+            )
+            return
+
+        for rule in self.priority_rules:
+            if rule.get("keyword", "").lower() in selected:
+                rule["enabled"] = bool(enabled)
+
+        self._save_config()
+        self._restart_monitor()
+        self.refresh_priority_rules_table()
+        message_key = (
+            "msg_enabled_checked_setting" if enabled else "msg_disabled_checked_setting"
+        )
+        messagebox.showinfo(self.i18n.t("msg_info"), self.i18n.t(message_key))
 
     def _find_rule_index(self, keyword):
         """Find priority rule index by keyword (case-insensitive)."""
@@ -439,8 +524,7 @@ class App(tk.Tk):
         if not self.priority_widgets:
             return
 
-        check_vars = self.priority_widgets.get("rule_check_vars", [])
-        selected_keywords = [kw.lower() for var, kw, _p in check_vars if var.get()]
+        selected_keywords = self._checked_keywords()
 
         if not selected_keywords:
             messagebox.showinfo(
@@ -455,6 +539,7 @@ class App(tk.Tk):
         ]
 
         self._save_config()
+        self._restart_monitor()
         self.refresh_priority_rules_table()
         messagebox.showinfo(
             self.i18n.t("msg_info"), self.i18n.t("msg_deleted_checked_setting")
@@ -474,17 +559,14 @@ class App(tk.Tk):
                 self.i18n.t("msg_error"), self.i18n.t("msg_startup_error", error=str(e))
             )
 
-    # ===== Auto-monitoring =====
+    # ===== Priority monitoring =====
 
-    def _on_auto_monitor_toggle(self):
-        """Handle auto-monitor toggle"""
-        if self.ui_builder.auto_monitor_var.get():
-            self.monitor.start(
-                self._get_active_priority_rules, self._get_update_interval
-            )
-        else:
-            self.monitor.stop()
-        self._save_config()
+    def _start_monitor(self):
+        self.monitor.start(self._get_active_priority_rules, self._get_update_interval)
+
+    def _restart_monitor(self):
+        """Re-run the monitor so rule/interval changes take effect immediately."""
+        self.monitor.restart(self._get_active_priority_rules, self._get_update_interval)
 
     def _get_active_priority_rules(self):
         """Return currently active rules for monitor loop."""
@@ -551,8 +633,7 @@ class App(tk.Tk):
         self.ui_builder.startup_var.set(
             bool(ui_config.get("start_with_windows", False))
         )
-        self.ui_builder.tray_var.set(bool(ui_config.get("minimize_to_tray", False)))
-        self.ui_builder.auto_monitor_var.set(bool(ui_config.get("auto_monitor", False)))
+        self.ui_builder.tray_var.set(bool(ui_config.get("minimize_to_tray", True)))
         self.ui_builder.check_updates_var.set(bool(ui_config.get("check_updates", True)))
 
     def _build_config_payload(self):
@@ -566,12 +647,7 @@ class App(tk.Tk):
                 "start_with_windows": bool(self.ui_builder.startup_var.get())
                 if self.ui_builder.settings_frame
                 else False,
-                "minimize_to_tray": bool(self.ui_builder.tray_var.get())
-                if self.ui_builder.settings_frame
-                else False,
-                "auto_monitor": bool(self.ui_builder.auto_monitor_var.get())
-                if self.ui_builder.settings_frame
-                else False,
+                "minimize_to_tray": self._tray_enabled(),
                 "check_updates": self._updates_enabled(),
             },
             "priority_rules": self.priority_rules,
@@ -590,34 +666,151 @@ class App(tk.Tk):
             threading.Thread(target=self._update_worker, daemon=True).start()
         self.after(update_checker.CHECK_INTERVAL_MS, self._schedule_update_check)
 
-    def _update_worker(self):
-        self._update_results.put(update_checker.check_for_update())
+    def _update_worker(self, manual=False):
+        self._update_results.put((update_checker.check_for_update(), manual))
 
     def _poll_update_result(self):
-        """Pick up background check results on the Tk thread."""
+        """Pick up background check/download results on the Tk thread."""
         try:
-            result = self._update_results.get_nowait()
+            info, manual = self._update_results.get_nowait()
         except queue.Empty:
-            result = None
-        if result and self._updates_enabled() and result[0] != self._notified_version:
-            tag, url = result
-            self._notified_version = tag
+            pass
+        else:
+            if info is None:
+                if manual:
+                    version = update_checker.get_current_version() or self.i18n.t(
+                        "version_dev"
+                    )
+                    messagebox.showinfo(
+                        self.i18n.t("msg_info"),
+                        self.i18n.t("update_up_to_date", version=version),
+                    )
+            elif manual or (
+                self._updates_enabled() and info.tag != self._notified_version
+            ):
+                self._notified_version = info.tag
+                self._offer_update(info)
+
+        try:
+            status, payload = self._install_results.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            self._downloading = False
+            self.title(self.i18n.t("app_title"))
+            if status == "ok":
+                messagebox.showinfo(
+                    self.i18n.t("msg_info"), self.i18n.t("update_installing")
+                )
+                try:
+                    update_checker.launch_installer(payload)
+                except OSError as e:
+                    messagebox.showerror(
+                        self.i18n.t("msg_error"),
+                        self.i18n.t("update_download_failed", error=str(e)),
+                    )
+                else:
+                    self._quit_app()
+                    return
+            else:
+                messagebox.showerror(
+                    self.i18n.t("msg_error"),
+                    self.i18n.t("update_download_failed", error=payload),
+                )
+        self.after(1000, self._poll_update_result)
+
+    def _offer_update(self, info):
+        """Ask whether to download+install (or just open the release page)."""
+        if info.msi_url:
+            if self._downloading:
+                return
             if messagebox.askyesno(
                 self.i18n.t("update_available_title"),
-                self.i18n.t("update_available_message").format(version=tag),
+                self.i18n.t("update_available_message", version=info.tag),
             ):
-                webbrowser.open(url)
-        self.after(1000, self._poll_update_result)
+                self._downloading = True
+                self.title(
+                    f"{self.i18n.t('app_title')} - {self.i18n.t('update_downloading')}"
+                )
+                threading.Thread(
+                    target=self._download_worker, args=(info,), daemon=True
+                ).start()
+        elif messagebox.askyesno(
+            self.i18n.t("update_available_title"),
+            self.i18n.t("update_available_message_no_installer", version=info.tag),
+        ):
+            webbrowser.open(info.page_url)
+
+    def _download_worker(self, info):
+        try:
+            path = update_checker.download_installer(info)
+        except (OSError, ValueError) as e:
+            self._install_results.put(("error", str(e)))
+        else:
+            self._install_results.put(("ok", path))
 
     def _on_check_updates_toggle(self):
         self._save_config()
         if self._updates_enabled():
             threading.Thread(target=self._update_worker, daemon=True).start()
 
+    def _on_check_updates_now(self):
+        threading.Thread(
+            target=self._update_worker, kwargs={"manual": True}, daemon=True
+        ).start()
+
     def _save_config(self):
         """Persist current state to config.json."""
         self.config = self._build_config_payload()
         self.config_manager.save(self.config)
+
+    # ===== System tray =====
+
+    def _tray_enabled(self):
+        if self.ui_builder.settings_frame:
+            return bool(self.ui_builder.tray_var.get())
+        return bool(self.config.get("ui", {}).get("minimize_to_tray", True))
+
+    def _sync_tray(self, restart=False):
+        """Make the tray icon match the "minimize to tray" setting."""
+        if restart and self.tray_manager is not None:
+            self.tray_manager.stop()
+            self.tray_manager = None
+
+        if self._tray_enabled():
+            if self.tray_manager is None:
+                # Callbacks run on the tray thread: hand them over to Tk via a queue.
+                self.tray_manager = TrayManager(
+                    self.i18n.t("app_title"),
+                    {
+                        "show": lambda: self._tray_events.put("show"),
+                        "exit": lambda: self._tray_events.put("exit"),
+                        "show_label": self.i18n.t("tray_show"),
+                        "exit_label": self.i18n.t("tray_exit"),
+                    },
+                )
+            if self.tray_manager.is_available():
+                self.tray_manager.start()
+        elif self.tray_manager is not None:
+            self.tray_manager.stop()
+            self.tray_manager = None
+
+    def _on_tray_toggle(self):
+        self._save_config()
+        self._sync_tray()
+
+    def _poll_tray_events(self):
+        try:
+            while True:
+                event = self._tray_events.get_nowait()
+                if event == "show":
+                    self._show_from_tray()
+                elif event == "exit":
+                    self._quit_app()
+                    return
+        except queue.Empty:
+            pass
+        self.after(200, self._poll_tray_events)
 
     # ===== Window management =====
 
@@ -628,36 +821,28 @@ class App(tk.Tk):
         self.after(max(500, self.refresh_interval), self._periodic_refresh)
 
     def _on_close(self):
-        """Handle window close"""
+        """Handle window close: hide to the tray when enabled, otherwise quit."""
         self._save_config()
-        if self.ui_builder.tray_var.get():
+        if (
+            self._tray_enabled()
+            and self.tray_manager is not None
+            and self.tray_manager.is_available()
+        ):
             self.withdraw()
-            if self.tray_manager is None:
-                self.tray_manager = TrayManager(
-                    self.i18n.t("app_title"),
-                    {
-                        "show": self._show_from_tray,
-                        "exit": self._quit_from_tray,
-                        "show_label": self.i18n.t("tray_show"),
-                        "exit_label": self.i18n.t("tray_exit"),
-                    },
-                )
-                if self.tray_manager.is_available():
-                    self.tray_manager.create_icon()
-                    self.tray_manager.start()
         else:
-            self.quit()
+            self._quit_app()
 
     def _show_from_tray(self):
-        """Show window from tray"""
-        if self.tray_manager:
-            self.tray_manager.stop()
+        """Restore the window (the tray icon stays)."""
         self.deiconify()
+        self.lift()
+        self.focus_force()
 
-    def _quit_from_tray(self):
-        """Quit from tray"""
+    def _quit_app(self):
+        """Fully exit the application."""
         if self.tray_manager:
             self.tray_manager.stop()
+        self.monitor.stop()
         self.quit()
 
 

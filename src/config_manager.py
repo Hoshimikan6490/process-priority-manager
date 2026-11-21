@@ -28,8 +28,7 @@ class ConfigManager:
             "process_refresh": "1s",
             "priority_update": "1s",
             "start_with_windows": False,
-            "minimize_to_tray": False,
-            "auto_monitor": False,
+            "minimize_to_tray": True,
             "check_updates": True,
         },
         "priority_rules": [],
@@ -75,8 +74,8 @@ class ConfigManager:
         return config
 
     @staticmethod
-    def _strict_bool(value):
-        return value if isinstance(value, bool) else False
+    def _bool_or(value, default):
+        return value if isinstance(value, bool) else default
 
     def _sanitize_ui(self, ui_loaded):
         """Sanitize UI config and force defaults for invalid values."""
@@ -98,14 +97,15 @@ class ConfigManager:
             "theme": theme,
             "process_refresh": process_refresh,
             "priority_update": priority_update,
-            "start_with_windows": self._strict_bool(
-                ui_loaded.get("start_with_windows")
+            "start_with_windows": self._bool_or(
+                ui_loaded.get("start_with_windows"), default_ui["start_with_windows"]
             ),
-            "minimize_to_tray": self._strict_bool(ui_loaded.get("minimize_to_tray")),
-            "auto_monitor": self._strict_bool(ui_loaded.get("auto_monitor")),
-            "check_updates": ui_loaded["check_updates"]
-            if isinstance(ui_loaded.get("check_updates"), bool)
-            else default_ui["check_updates"],
+            "minimize_to_tray": self._bool_or(
+                ui_loaded.get("minimize_to_tray"), default_ui["minimize_to_tray"]
+            ),
+            "check_updates": self._bool_or(
+                ui_loaded.get("check_updates"), default_ui["check_updates"]
+            ),
         }
 
     @staticmethod

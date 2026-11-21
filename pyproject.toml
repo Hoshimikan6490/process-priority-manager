@@ -19,11 +19,12 @@ py-modules = ["main"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["src*", "locales*"]
+include = ["src*", "locales*", "assets*"]
 namespaces = true
 
 [tool.setuptools.package-data]
 locales = ["*.json"]
+assets = ["*.png"]
 
 [tool.pyappdist]
 name = "Process Priority Manager"

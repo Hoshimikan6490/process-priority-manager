@@ -4,6 +4,14 @@ import tkinter as tk
 import webbrowser
 from tkinter import ttk
 
+try:
+	from PIL import ImageTk
+except ImportError:
+	ImageTk = None
+
+from . import update_checker
+from .resources import load_logo
+
 
 class UIBuilder:
 	"""Builds and manages UI components"""
@@ -73,31 +81,16 @@ class UIBuilder:
 			pass
 	
 	def create_toolbar(self, toggle_settings_callback):
-		"""Create toolbar with title and settings button
-		
+		"""Create toolbar with the settings button (the title bar already shows the title)
+
 		Args:
 			toggle_settings_callback: Callback for settings button
 		"""
-		toolbar = ttk.Frame(self.app)
-		toolbar.pack(fill='x')
-		
-		gear = ttk.Button(toolbar, text='⚙', width=3, command=toggle_settings_callback)
-		gear.pack(side='right', padx=6, pady=6)
-		
-		self.toolbar_title = ttk.Label(
-			toolbar,
-			text=self.i18n.t('app_title'),
-			font=('Segoe UI', 12, 'bold')
-		)
-		self.toolbar_title.pack(side='left', padx=8)
-	
-	def update_toolbar_title(self):
-		"""Update toolbar title after language change"""
-		if hasattr(self, 'toolbar_title'):
-			try:
-				self.toolbar_title.configure(text=self.i18n.t('app_title'))
-			except tk.TclError:
-				pass
+		# Sits on the same row as the tabs, at the right edge (see create_notebook)
+		# Sized to match the tabs (see TNotebook.Tab in App._apply_theme)
+		ttk.Style(self.app).configure('Gear.TButton', font=('Segoe UI Emoji', 14), padding=(6, 5))
+		self.gear = ttk.Button(self.app, text='⚙️', style='Gear.TButton', width=3, command=toggle_settings_callback)
+		self.gear.place(relx=1.0, x=-8, y=4, anchor='ne')
 	
 	def create_settings_panel(self, callbacks):
 		"""Create settings panel
@@ -205,7 +198,6 @@ class UIBuilder:
 		# Checkbuttons
 		self.startup_var = tk.BooleanVar(value=False)
 		self.tray_var = tk.BooleanVar(value=False)
-		self.auto_monitor_var = tk.BooleanVar(value=False)
 		self.check_updates_var = tk.BooleanVar(value=True)
 		
 		ttk.Checkbutton(
@@ -224,16 +216,16 @@ class UIBuilder:
 		
 		ttk.Checkbutton(
 			self.settings_frame,
-			text=self.i18n.t('auto_monitor_checkbox'),
-			variable=self.auto_monitor_var,
-			command=callbacks.get('on_auto_monitor_toggle', lambda: None)
-		).grid(row=6, column=0, columnspan=2, sticky='w')
-
-		ttk.Checkbutton(
-			self.settings_frame,
 			text=self.i18n.t('check_updates_checkbox'),
 			variable=self.check_updates_var,
 			command=callbacks.get('on_check_updates_toggle', lambda: None)
+		).grid(row=6, column=0, columnspan=2, sticky='w')
+
+		# 今すぐ更新を確認（更新があればインストールまで案内）
+		ttk.Button(
+			self.settings_frame,
+			text=self.i18n.t('check_updates_now_button'),
+			command=callbacks.get('on_check_updates_now', lambda: None)
 		).grid(row=7, column=0, columnspan=2, sticky='w')
 
 		# リポジトリへのURLリンクボタン
@@ -244,6 +236,13 @@ class UIBuilder:
 			command=lambda: webbrowser.open(repo_url)
 		)
 		repo_button.grid(row=8, column=0, columnspan=2, sticky='w', pady=(10, 0))
+
+		# このアプリについて
+		ttk.Button(
+			self.settings_frame,
+			text=self.i18n.t('about_button'),
+			command=self.show_about
+		).grid(row=10, column=0, columnspan=2, sticky='w', pady=(4, 0))
 
 		# 設定ファイルを開くボタン
 		open_config_button = ttk.Button(
@@ -257,6 +256,35 @@ class UIBuilder:
 		for child in self.settings_frame.winfo_children():
 			child.grid_configure(padx=4, pady=4)
 	
+	def show_about(self):
+		"""Show the "About this app" dialog."""
+		win = tk.Toplevel(self.settings_window or self.app)
+		win.title(self.i18n.t('about_button'))
+		win.resizable(False, False)
+		win.transient(self.settings_window or self.app)
+
+		body = ttk.Frame(win, padding=16)
+		body.pack(fill='both', expand=True)
+
+		logo = load_logo(96)
+		if logo is not None and ImageTk is not None:
+			win._logo_image = ImageTk.PhotoImage(logo)  # keep a reference
+			ttk.Label(body, image=win._logo_image).pack(pady=(0, 8))
+
+		ttk.Label(body, text=self.i18n.t('app_title'), font=('Segoe UI', 14, 'bold')).pack()
+		version = update_checker.get_current_version() or self.i18n.t('version_dev')
+		ttk.Label(body, text=self.i18n.t('about_version', version=version)).pack(pady=(2, 8))
+		ttk.Label(body, text=self.i18n.t('about_description'), justify='center', wraplength=320).pack(pady=(0, 8))
+		ttk.Label(body, text=self.i18n.t('about_license'), justify='center', wraplength=320).pack()
+		ttk.Button(body, text='OK', command=win.destroy).pack(pady=(12, 0))
+
+		win.update_idletasks()
+		parent = self.settings_window or self.app
+		x = parent.winfo_x() + max(0, (parent.winfo_width() - win.winfo_reqwidth()) // 2)
+		y = parent.winfo_y() + max(0, (parent.winfo_height() - win.winfo_reqheight()) // 2)
+		win.geometry(f'+{x}+{y}')
+		win.grab_set()
+
 	def toggle_settings(self):
 		"""Toggle settings panel visibility"""
 		self._ensure_settings_window()
@@ -277,7 +305,9 @@ class UIBuilder:
 			Notebook widget
 		"""
 		notebook = ttk.Notebook(self.app)
-		notebook.pack(fill='both', expand=True, padx=8, pady=4)
+		notebook.pack(fill='both', expand=True, padx=8, pady=(4, 8))
+		if hasattr(self, 'gear'):
+			self.gear.lift()
 		return notebook
 	
 	def create_process_tab(self, parent, callbacks):
@@ -393,24 +423,38 @@ class UIBuilder:
 		add_frame.columnconfigure(1, weight=1)
 
 		# Active settings section
-		active_frame = ttk.LabelFrame(frame, text=self.i18n.t('priority_active_settings_section'), padding=8)
+		active_frame = ttk.LabelFrame(frame, text=self.i18n.t('priority_registered_settings_section'), padding=8)
 		active_frame.pack(fill='both', expand=True)
 
 		headers = ttk.Frame(active_frame)
 		headers.pack(fill='x')
-		ttk.Label(headers, text=self.i18n.t('priority_column_select'), width=8).grid(row=0, column=0, sticky='w')
-		ttk.Label(headers, text=self.i18n.t('priority_column_keyword'), width=30).grid(row=0, column=1, sticky='w')
-		ttk.Label(headers, text=self.i18n.t('priority_column_priority'), width=16).grid(row=0, column=2, sticky='w')
+		# Column widths must match the rows built in App.refresh_priority_rules_table
+		ttk.Label(headers, text=self.i18n.t('priority_column_select'), width=6).grid(row=0, column=0, sticky='w', padx=(0, 8))
+		ttk.Label(headers, text=self.i18n.t('priority_column_enabled'), width=7).grid(row=0, column=1, sticky='w', padx=(0, 8))
+		ttk.Label(headers, text=self.i18n.t('priority_column_keyword'), width=28).grid(row=0, column=2, sticky='w', padx=(0, 8))
+		ttk.Label(headers, text=self.i18n.t('priority_column_priority'), width=14).grid(row=0, column=3, sticky='w')
 
 		rules_rows_frame = ttk.Frame(active_frame)
 		rules_rows_frame.pack(fill='both', expand=True, pady=(6, 8))
 
+		buttons = ttk.Frame(active_frame)
+		buttons.pack(anchor='w')
+		ttk.Button(
+			buttons,
+			text=self.i18n.t('enable_checked_settings_button'),
+			command=callbacks.get('on_enable_priority_rules', lambda: None)
+		).pack(side='left', padx=(0, 6))
+		ttk.Button(
+			buttons,
+			text=self.i18n.t('disable_checked_settings_button'),
+			command=callbacks.get('on_disable_priority_rules', lambda: None)
+		).pack(side='left', padx=(0, 6))
 		delete_btn = ttk.Button(
-			active_frame,
+			buttons,
 			text=self.i18n.t('delete_checked_settings_button'),
 			command=callbacks.get('on_delete_priority_rules', lambda: None)
 		)
-		delete_btn.pack(anchor='w')
+		delete_btn.pack(side='left')
 
 		for child in add_frame.winfo_children():
 			child.grid_configure(padx=6, pady=4)
