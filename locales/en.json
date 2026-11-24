@@ -17,6 +17,7 @@
 	"update_available_message_no_installer": "A new version {version} is available.\nOpen the download page?",
 	"check_updates_now_button": "Check for Updates Now",
 	"update_up_to_date": "You are up to date (current version: {version})",
+	"update_check_failed": "Failed to check for updates: {error}",
 	"update_download_failed": "Failed to download the update: {error}",
 	"about_button": "About This App",
 	"about_version": "Version {version}",

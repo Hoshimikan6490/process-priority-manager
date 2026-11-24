@@ -667,16 +667,25 @@ class App(tk.Tk):
         self.after(update_checker.CHECK_INTERVAL_MS, self._schedule_update_check)
 
     def _update_worker(self, manual=False):
-        self._update_results.put((update_checker.check_for_update(), manual))
+        try:
+            self._update_results.put((update_checker.check_for_update(), manual, None))
+        except update_checker.UpdateCheckError as e:
+            self._update_results.put((None, manual, str(e)))
 
     def _poll_update_result(self):
         """Pick up background check/download results on the Tk thread."""
         try:
-            info, manual = self._update_results.get_nowait()
+            info, manual, error = self._update_results.get_nowait()
         except queue.Empty:
             pass
         else:
-            if info is None:
+            if error is not None:
+                if manual:
+                    messagebox.showerror(
+                        self.i18n.t("msg_error"),
+                        self.i18n.t("update_check_failed", error=error),
+                    )
+            elif info is None:
                 if manual:
                     version = update_checker.get_current_version() or self.i18n.t(
                         "version_dev"

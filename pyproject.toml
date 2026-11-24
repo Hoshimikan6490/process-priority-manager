@@ -12,6 +12,7 @@ dependencies = [
     "psutil",
     "pystray",
     "Pillow",
+    "certifi",
 ]
 
 [tool.setuptools]
