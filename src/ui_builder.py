@@ -276,7 +276,7 @@ class UIBuilder:
 		ttk.Label(body, text=self.i18n.t('about_version', version=version)).pack(pady=(2, 8))
 		ttk.Label(body, text=self.i18n.t('about_description'), justify='center', wraplength=320).pack(pady=(0, 8))
 		ttk.Label(body, text=self.i18n.t('about_license'), justify='center', wraplength=320).pack()
-		ttk.Button(body, text='OK', command=win.destroy).pack(pady=(12, 0))
+		ttk.Button(body, text=self.i18n.t('ok_button'), command=win.destroy).pack(pady=(12, 0))
 
 		win.update_idletasks()
 		parent = self.settings_window or self.app
