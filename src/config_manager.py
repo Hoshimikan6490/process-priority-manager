@@ -15,7 +15,7 @@ class ConfigManager:
     VALID_PRIORITY_REFRESH = frozenset(
         {"1s", "5s", "10s", "20s", "30s", "45s", "60s", "first only"}
     )
-    VALID_LANGUAGES = frozenset({"ja", "en"})
+    VALID_LANGUAGES = frozenset({"ja", "en", "zh", "ko", "es", "fr", "de"})
     VALID_PRIORITIES = frozenset(
         {"Idle", "Below Normal", "Normal", "Above Normal", "High", "RealTime"}
     )
